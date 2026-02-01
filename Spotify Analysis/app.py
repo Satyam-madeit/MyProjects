@@ -228,17 +228,46 @@ def load_and_clean(raw_bytes: bytes) -> pd.DataFrame:
 # PLOTLY DEFAULTS
 # ─────────────────────────────────────────────
 def base_layout(**kwargs):
+    # pull axis overrides safely
+    xaxis_custom = kwargs.pop("xaxis", {})
+    yaxis_custom = kwargs.pop("yaxis", {})
+
+    # base axis configs
+    xaxis_cfg = {
+        "showgrid": False,
+        "showline": False,
+        "title_font": dict(color=TEXT_MUTED, size=11),
+    }
+    yaxis_cfg = {
+        "showgrid": True,
+        "gridcolor": "#2a2a2a",
+        "showline": False,
+        "title_font": dict(color=TEXT_MUTED, size=11),
+    }
+
+    # override safely (NO duplicate keys)
+    xaxis_cfg.update(xaxis_custom)
+    yaxis_cfg.update(yaxis_custom)
+
     return go.Layout(
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
         font=dict(color=TEXT_SECONDARY, size=11),
         margin=dict(l=16, r=16, t=40, b=40),
-        xaxis=dict(showgrid=False, showline=False, title_font=dict(color=TEXT_MUTED, size=11)),
-        yaxis=dict(showgrid=True, gridcolor="#2a2a2a", showline=False, title_font=dict(color=TEXT_MUTED, size=11)),
+
+        xaxis=xaxis_cfg,
+        yaxis=yaxis_cfg,
+
         hovermode="x unified",
-        hoverlabel=dict(bgcolor=CARD_BG, bordercolor=CARD_BORDER, font=dict(size=12, color=TEXT_PRIMARY)),
+        hoverlabel=dict(
+            bgcolor=CARD_BG,
+            bordercolor=CARD_BORDER,
+            font=dict(size=12, color=TEXT_PRIMARY),
+        ),
+
         **kwargs
     )
+
 
 
 def chart_wrap(fig):
