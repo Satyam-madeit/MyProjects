@@ -267,219 +267,223 @@ uploaded = st.file_uploader(
 )
 
 if not uploaded:
-    st.stop()
-
-# ── Load ──
-df = load_and_clean(uploaded.getvalue())
-
-# ─────────────────────────────────────────────
-# KPI CARDS
-# ─────────────────────────────────────────────
-total_min = df['minutes_played'].sum()
-total_tracks = len(df)
-active_days = df['ts'].dt.date.nunique()
-avg_per_day = total_min / max(active_days, 1)
-
-st.markdown(f"""
-<div class="stat-row">
-  <div class="stat-card">
-    <div class="stat-label">Total Hours</div>
-    <div class="stat-value">{total_min/60:,.0f}<span style="font-size:1rem;color:{TEXT_MUTED}">h</span></div>
-    <div class="stat-sub">{total_min:,.0f} minutes</div>
-  </div>
-  <div class="stat-card">
-    <div class="stat-label">Tracks Played</div>
-    <div class="stat-value">{total_tracks:,}</div>
-    <div class="stat-sub">unique sessions</div>
-  </div>
-  <div class="stat-card">
-    <div class="stat-label">Active Days</div>
-    <div class="stat-value">{active_days:,}</div>
-    <div class="stat-sub">days with activity</div>
-  </div>
-  <div class="stat-card">
-    <div class="stat-label">Daily Average</div>
-    <div class="stat-value">{avg_per_day:.0f}<span style="font-size:1rem;color:{TEXT_MUTED}">min</span></div>
-    <div class="stat-sub">minutes per day</div>
-  </div>
-</div>
-""", unsafe_allow_html=True)
-
-# ─────────────────────────────────────────────
-# ROW 1 — Tracks by Year  |  Platform Split
-# ─────────────────────────────────────────────
-col1, col2 = st.columns([3, 2], gap="medium")
-
-with col1:
-    st.markdown('<div class="section-title"><span class="green-dot"></span>Tracks by Year</div>', unsafe_allow_html=True)
-    yc = df['Year'].value_counts().sort_index()
-    fig = go.Figure(
-        data=[go.Bar(
-            x=yc.index.astype(str), y=yc.values,
-            marker_color=GREEN,
-            marker_line=dict(color=GREEN_DARK, width=1),
-            text=yc.values, textposition="outside",
-            textfont=dict(color=TEXT_SECONDARY, size=11),
-            hovertemplate="<b>%{x}</b><br>%{y:,} tracks<extra></extra>",
-        )],
-        layout=base_layout(title_text="", yaxis_title="Tracks")
-    )
-    chart_wrap(fig)
-
-with col2:
-    st.markdown('<div class="section-title"><span class="green-dot"></span>Platform Distribution</div>', unsafe_allow_html=True)
-    pc = df['platform'].value_counts()
-    colors_pie = [GREEN, "#158a3e", "#0e6b2f", "#a8a8a8", "#6b6b6b"]
-    fig = go.Figure(
-        data=[go.Pie(
-            labels=pc.index, values=pc.values,
-            marker_colors=colors_pie[:len(pc)],
-            textinfo="label+percent",
-            textfont=dict(color=TEXT_PRIMARY, size=11),
-            hovertemplate="<b>%{label}</b><br>%{value:,} plays (%{percent})<extra></extra>",
-            hole=0.4,
-        )],
-        layout=go.Layout(
-            paper_bgcolor="rgba(0,0,0,0)",
-            plot_bgcolor="rgba(0,0,0,0)",
-            margin=dict(l=16, r=16, t=10, b=10),
-            showlegend=False,
-            font=dict(color=TEXT_SECONDARY, size=11),
-            hoverlabel=dict(bgcolor=CARD_BG, bordercolor=CARD_BORDER, font=dict(size=12, color=TEXT_PRIMARY)),
-        )
-    )
-    chart_wrap(fig)
-
-# ─────────────────────────────────────────────
-# ROW 2 — Top Artists  |  Top Albums  |  Top Tracks
-# ─────────────────────────────────────────────
-TOP_N = 15
-top_artists = df['Artist'].value_counts().head(TOP_N)
-top_albums = df['Album'].value_counts().head(TOP_N)
-top_tracks = df['Track'].value_counts().head(TOP_N)
-
-tabs = st.tabs(["🎤 Top Artists", "💿 Top Albums", "🎵 Top Tracks"])
-
-for tab, series, title in zip(tabs, [top_artists, top_albums, top_tracks],
-                               ["Artists", "Albums", "Tracks"]):
-    with tab:
-        # Truncate long labels for chart, keep original for hover
-        max_len = 28
-        short = series.index.map(lambda x: (x[:max_len] + "…") if len(str(x)) > max_len else x)
-        fig = go.Figure(
-            data=[go.Bar(
-                y=short[::-1], x=series.values[::-1],
-                orientation="h",
-                marker_color=[GREEN if i == 0 else "#2a4a2a" for i in range(len(series))],
-                text=series.values[::-1],
-                textposition="outside",
-                textfont=dict(color=TEXT_SECONDARY, size=10),
-                customdata=series.index[::-1],
-                hovertemplate="<b>%{customdata}</b><br>%{x:,} plays<extra></extra>",
-            )],
-            layout=base_layout(
-                title_text=f"Top {TOP_N} {title}",
-                title_font=dict(color=TEXT_PRIMARY, size=13),
-                xaxis=dict(showgrid=True, gridcolor="#2a2a2a", showline=False, title_text="Plays"),
-                yaxis=dict(showgrid=False, showline=False, tickfont=dict(size=10.5, color=TEXT_SECONDARY)),
-                height=480,
-                bargap=0.3,
-            )
-        )
-        chart_wrap(fig)
-
-# ─────────────────────────────────────────────
-# ROW 3 — Hourly Activity  |  Weekly Patterns
-# ─────────────────────────────────────────────
-col1, col2 = st.columns(2, gap="medium")
-
-with col1:
-    st.markdown('<div class="section-title"><span class="green-dot"></span>Hourly Listening</div>', unsafe_allow_html=True)
-    hourly = df['Hour'].value_counts().sort_index()
-    peak_h = hourly.idxmax()
-    fig = go.Figure(
-        data=[go.Bar(
-            x=[f"{h:02d}:00" for h in hourly.index],
-            y=hourly.values,
-            marker_color=[GREEN if h == peak_h else "#2a4a2a" for h in hourly.index],
-            hovertemplate="<b>%{x}</b><br>%{y:,} plays<extra></extra>",
-        )],
-        layout=base_layout(title_text="", xaxis_title="Hour", yaxis_title="Plays",
-                           xaxis_tickfont=dict(size=9))
-    )
-    chart_wrap(fig)
-
-with col2:
-    st.markdown('<div class="section-title"><span class="green-dot"></span>Weekly Patterns</div>', unsafe_allow_html=True)
-    day_order = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday']
-    weekly = df['Day'].value_counts().reindex(day_order).fillna(0).astype(int)
-    peak_d = weekly.idxmax()
-    fig = go.Figure(
-        data=[go.Bar(
-            x=weekly.index, y=weekly.values,
-            marker_color=[GREEN if d == peak_d else "#2a4a2a" for d in weekly.index],
-            hovertemplate="<b>%{x}</b><br>%{y:,} plays<extra></extra>",
-        )],
-        layout=base_layout(title_text="", xaxis_title="Day", yaxis_title="Plays",
-                           xaxis_tickfont=dict(size=9.5))
-    )
-    chart_wrap(fig)
-
-# ─────────────────────────────────────────────
-# ROW 4 — Discovery Rate
-# ─────────────────────────────────────────────
-st.markdown('<div class="section-title"><span class="green-dot"></span>Discovery Rate</div>', unsafe_allow_html=True)
-
-current_year = df['Year'].max()
-df['IsNew'] = df['Year'] >= (current_year - 1)
-new_ct = int(df['IsNew'].sum())
-old_ct = int((~df['IsNew']).sum())
-new_pct = new_ct / total_tracks * 100
-
-col1, col2 = st.columns([1, 3], gap="medium")
-
-with col1:
-    fig = go.Figure(
-        data=[go.Pie(
-            labels=["New Releases", "Older Tracks"],
-            values=[new_ct, old_ct],
-            marker_colors=[GREEN, "#2a2a2a"],
-            textinfo="percent",
-            textfont=dict(color=TEXT_PRIMARY, size=13, family="sans-serif"),
-            hovertemplate="<b>%{label}</b><br>%{value:,} (%{percent})<extra></extra>",
-            hole=0.5,
-        )],
-        layout=go.Layout(
-            paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-            margin=dict(l=0, r=0, t=10, b=10), showlegend=False,
-            font=dict(color=TEXT_SECONDARY),
-            hoverlabel=dict(bgcolor=CARD_BG, bordercolor=CARD_BORDER, font=dict(size=12, color=TEXT_PRIMARY)),
-        )
-    )
-    chart_wrap(fig)
-
-with col2:
     st.markdown(f"""
-    <div style="display:flex; gap:2rem; align-items:center; height:100%; padding-top:1rem;">
-      <div style="background:{CARD_BG}; border:1px solid {CARD_BORDER}; border-radius:12px; padding:1.4rem 1.8rem; flex:1;">
-        <div style="font-size:0.7rem; text-transform:uppercase; letter-spacing:1.2px; color:{TEXT_MUTED};">New Releases <span style="color:{GREEN}">&lt; 1 yr</span></div>
-        <div style="font-size:2rem; font-weight:700; color:{GREEN}; margin-top:0.3rem;">{new_pct:.1f}%</div>
-        <div style="font-size:0.77rem; color:{TEXT_SECONDARY}; margin-top:0.15rem;">{new_ct:,} tracks</div>
-      </div>
-      <div style="background:{CARD_BG}; border:1px solid {CARD_BORDER}; border-radius:12px; padding:1.4rem 1.8rem; flex:1;">
-        <div style="font-size:0.7rem; text-transform:uppercase; letter-spacing:1.2px; color:{TEXT_MUTED};">Older Tracks</div>
-        <div style="font-size:2rem; font-weight:700; color:{TEXT_SECONDARY}; margin-top:0.3rem;">{100-new_pct:.1f}%</div>
-        <div style="font-size:0.77rem; color:{TEXT_SECONDARY}; margin-top:0.15rem;">{old_ct:,} tracks</div>
-      </div>
+    <div style="margin-top:3rem; text-align:center; color:{TEXT_MUTED}; font-size:0.85rem;">
+        👆 Upload your <b style="color:{TEXT_SECONDARY}">Streaming_History_Audio.json</b> file above to get started.
     </div>
     """, unsafe_allow_html=True)
+else:
+  # ── Load ──
+  df = load_and_clean(uploaded.getvalue())
 
-# ─────────────────────────────────────────────
-# FOOTER
-# ─────────────────────────────────────────────
-st.markdown(f"""
-<div style="margin-top:3rem; padding-top:1.2rem; border-top:1px solid {CARD_BORDER};
-     text-align:center; color:{TEXT_MUTED}; font-size:0.72rem;">
-  Spotify Listening Insights &nbsp;·&nbsp; Built with Streamlit &nbsp;·&nbsp; Data covers {df['Year'].min()}–{df['Year'].max()}
-</div>
-""", unsafe_allow_html=True)
+  # ─────────────────────────────────────────────
+  # KPI CARDS
+  # ─────────────────────────────────────────────
+  total_min = df['minutes_played'].sum()
+  total_tracks = len(df)
+  active_days = df['ts'].dt.date.nunique()
+  avg_per_day = total_min / max(active_days, 1)
+
+  st.markdown(f"""
+  <div class="stat-row">
+    <div class="stat-card">
+      <div class="stat-label">Total Hours</div>
+      <div class="stat-value">{total_min/60:,.0f}<span style="font-size:1rem;color:{TEXT_MUTED}">h</span></div>
+      <div class="stat-sub">{total_min:,.0f} minutes</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Tracks Played</div>
+      <div class="stat-value">{total_tracks:,}</div>
+      <div class="stat-sub">unique sessions</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Active Days</div>
+      <div class="stat-value">{active_days:,}</div>
+      <div class="stat-sub">days with activity</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Daily Average</div>
+      <div class="stat-value">{avg_per_day:.0f}<span style="font-size:1rem;color:{TEXT_MUTED}">min</span></div>
+      <div class="stat-sub">minutes per day</div>
+    </div>
+  </div>
+  """, unsafe_allow_html=True)
+
+  # ─────────────────────────────────────────────
+  # ROW 1 — Tracks by Year  |  Platform Split
+  # ─────────────────────────────────────────────
+  col1, col2 = st.columns([3, 2], gap="medium")
+
+  with col1:
+      st.markdown('<div class="section-title"><span class="green-dot"></span>Tracks by Year</div>', unsafe_allow_html=True)
+      yc = df['Year'].value_counts().sort_index()
+      fig = go.Figure(
+          data=[go.Bar(
+              x=yc.index.astype(str), y=yc.values,
+              marker_color=GREEN,
+              marker_line=dict(color=GREEN_DARK, width=1),
+              text=yc.values, textposition="outside",
+              textfont=dict(color=TEXT_SECONDARY, size=11),
+              hovertemplate="<b>%{x}</b><br>%{y:,} tracks<extra></extra>",
+          )],
+          layout=base_layout(title_text="", yaxis_title="Tracks")
+      )
+      chart_wrap(fig)
+
+  with col2:
+      st.markdown('<div class="section-title"><span class="green-dot"></span>Platform Distribution</div>', unsafe_allow_html=True)
+      pc = df['platform'].value_counts()
+      colors_pie = [GREEN, "#158a3e", "#0e6b2f", "#a8a8a8", "#6b6b6b"]
+      fig = go.Figure(
+          data=[go.Pie(
+              labels=pc.index, values=pc.values,
+              marker_colors=colors_pie[:len(pc)],
+              textinfo="label+percent",
+              textfont=dict(color=TEXT_PRIMARY, size=11),
+              hovertemplate="<b>%{label}</b><br>%{value:,} plays (%{percent})<extra></extra>",
+              hole=0.4,
+          )],
+          layout=go.Layout(
+              paper_bgcolor="rgba(0,0,0,0)",
+              plot_bgcolor="rgba(0,0,0,0)",
+              margin=dict(l=16, r=16, t=10, b=10),
+              showlegend=False,
+              font=dict(color=TEXT_SECONDARY, size=11),
+              hoverlabel=dict(bgcolor=CARD_BG, bordercolor=CARD_BORDER, font=dict(size=12, color=TEXT_PRIMARY)),
+          )
+      )
+      chart_wrap(fig)
+
+  # ─────────────────────────────────────────────
+  # ROW 2 — Top Artists  |  Top Albums  |  Top Tracks
+  # ─────────────────────────────────────────────
+  TOP_N = 15
+  top_artists = df['Artist'].value_counts().head(TOP_N)
+  top_albums = df['Album'].value_counts().head(TOP_N)
+  top_tracks = df['Track'].value_counts().head(TOP_N)
+
+  tabs = st.tabs(["🎤 Top Artists", "💿 Top Albums", "🎵 Top Tracks"])
+
+  for tab, series, title in zip(tabs, [top_artists, top_albums, top_tracks],
+                                 ["Artists", "Albums", "Tracks"]):
+      with tab:
+          # Truncate long labels for chart, keep original for hover
+          max_len = 28
+          short = series.index.map(lambda x: (x[:max_len] + "…") if len(str(x)) > max_len else x)
+          fig = go.Figure(
+              data=[go.Bar(
+                  y=short[::-1], x=series.values[::-1],
+                  orientation="h",
+                  marker_color=[GREEN if i == 0 else "#2a4a2a" for i in range(len(series))],
+                  text=series.values[::-1],
+                  textposition="outside",
+                  textfont=dict(color=TEXT_SECONDARY, size=10),
+                  customdata=series.index[::-1],
+                  hovertemplate="<b>%{customdata}</b><br>%{x:,} plays<extra></extra>",
+              )],
+              layout=base_layout(
+                  title_text=f"Top {TOP_N} {title}",
+                  title_font=dict(color=TEXT_PRIMARY, size=13),
+                  xaxis=dict(showgrid=True, gridcolor="#2a2a2a", showline=False, title_text="Plays"),
+                  yaxis=dict(showgrid=False, showline=False, tickfont=dict(size=10.5, color=TEXT_SECONDARY)),
+                  height=480,
+                  bargap=0.3,
+              )
+          )
+          chart_wrap(fig)
+
+  # ─────────────────────────────────────────────
+  # ROW 3 — Hourly Activity  |  Weekly Patterns
+  # ─────────────────────────────────────────────
+  col1, col2 = st.columns(2, gap="medium")
+
+  with col1:
+      st.markdown('<div class="section-title"><span class="green-dot"></span>Hourly Listening</div>', unsafe_allow_html=True)
+      hourly = df['Hour'].value_counts().sort_index()
+      peak_h = hourly.idxmax()
+      fig = go.Figure(
+          data=[go.Bar(
+              x=[f"{h:02d}:00" for h in hourly.index],
+              y=hourly.values,
+              marker_color=[GREEN if h == peak_h else "#2a4a2a" for h in hourly.index],
+              hovertemplate="<b>%{x}</b><br>%{y:,} plays<extra></extra>",
+          )],
+          layout=base_layout(title_text="", xaxis_title="Hour", yaxis_title="Plays",
+                             xaxis_tickfont=dict(size=9))
+      )
+      chart_wrap(fig)
+
+  with col2:
+      st.markdown('<div class="section-title"><span class="green-dot"></span>Weekly Patterns</div>', unsafe_allow_html=True)
+      day_order = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday']
+      weekly = df['Day'].value_counts().reindex(day_order).fillna(0).astype(int)
+      peak_d = weekly.idxmax()
+      fig = go.Figure(
+          data=[go.Bar(
+              x=weekly.index, y=weekly.values,
+              marker_color=[GREEN if d == peak_d else "#2a4a2a" for d in weekly.index],
+              hovertemplate="<b>%{x}</b><br>%{y:,} plays<extra></extra>",
+          )],
+          layout=base_layout(title_text="", xaxis_title="Day", yaxis_title="Plays",
+                             xaxis_tickfont=dict(size=9.5))
+      )
+      chart_wrap(fig)
+
+  # ─────────────────────────────────────────────
+  # ROW 4 — Discovery Rate
+  # ─────────────────────────────────────────────
+  st.markdown('<div class="section-title"><span class="green-dot"></span>Discovery Rate</div>', unsafe_allow_html=True)
+
+  current_year = df['Year'].max()
+  df['IsNew'] = df['Year'] >= (current_year - 1)
+  new_ct = int(df['IsNew'].sum())
+  old_ct = int((~df['IsNew']).sum())
+  new_pct = new_ct / total_tracks * 100
+
+  col1, col2 = st.columns([1, 3], gap="medium")
+
+  with col1:
+      fig = go.Figure(
+          data=[go.Pie(
+              labels=["New Releases", "Older Tracks"],
+              values=[new_ct, old_ct],
+              marker_colors=[GREEN, "#2a2a2a"],
+              textinfo="percent",
+              textfont=dict(color=TEXT_PRIMARY, size=13, family="sans-serif"),
+              hovertemplate="<b>%{label}</b><br>%{value:,} (%{percent})<extra></extra>",
+              hole=0.5,
+          )],
+          layout=go.Layout(
+              paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+              margin=dict(l=0, r=0, t=10, b=10), showlegend=False,
+              font=dict(color=TEXT_SECONDARY),
+              hoverlabel=dict(bgcolor=CARD_BG, bordercolor=CARD_BORDER, font=dict(size=12, color=TEXT_PRIMARY)),
+          )
+      )
+      chart_wrap(fig)
+
+  with col2:
+      st.markdown(f"""
+      <div style="display:flex; gap:2rem; align-items:center; height:100%; padding-top:1rem;">
+        <div style="background:{CARD_BG}; border:1px solid {CARD_BORDER}; border-radius:12px; padding:1.4rem 1.8rem; flex:1;">
+          <div style="font-size:0.7rem; text-transform:uppercase; letter-spacing:1.2px; color:{TEXT_MUTED};">New Releases <span style="color:{GREEN}">&lt; 1 yr</span></div>
+          <div style="font-size:2rem; font-weight:700; color:{GREEN}; margin-top:0.3rem;">{new_pct:.1f}%</div>
+          <div style="font-size:0.77rem; color:{TEXT_SECONDARY}; margin-top:0.15rem;">{new_ct:,} tracks</div>
+        </div>
+        <div style="background:{CARD_BG}; border:1px solid {CARD_BORDER}; border-radius:12px; padding:1.4rem 1.8rem; flex:1;">
+          <div style="font-size:0.7rem; text-transform:uppercase; letter-spacing:1.2px; color:{TEXT_MUTED};">Older Tracks</div>
+          <div style="font-size:2rem; font-weight:700; color:{TEXT_SECONDARY}; margin-top:0.3rem;">{100-new_pct:.1f}%</div>
+          <div style="font-size:0.77rem; color:{TEXT_SECONDARY}; margin-top:0.15rem;">{old_ct:,} tracks</div>
+        </div>
+      </div>
+      """, unsafe_allow_html=True)
+
+  # ─────────────────────────────────────────────
+  # FOOTER
+  # ─────────────────────────────────────────────
+  st.markdown(f"""
+  <div style="margin-top:3rem; padding-top:1.2rem; border-top:1px solid {CARD_BORDER};
+       text-align:center; color:{TEXT_MUTED}; font-size:0.72rem;">
+    Spotify Listening Insights &nbsp;·&nbsp; Built with Streamlit &nbsp;·&nbsp; Data covers {df['Year'].min()}–{df['Year'].max()}
+  </div>
+  """, unsafe_allow_html=True)
