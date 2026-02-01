@@ -51,7 +51,6 @@ Spotify streaming history can be requested from your account privacy settings at
 ```
 ├── app.py                                  # Streamlit dashboard
 ├── main.ipynb                              # Jupyter notebook analysis
-├── Streaming_History_Audio_2022-2026.json  # Raw Spotify export
 └── README.md                               # This file
 ```
 
