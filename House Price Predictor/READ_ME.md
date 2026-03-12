@@ -47,7 +47,7 @@ Housing Price Model/
 | Algorithm       | Random Forest Regressor   |
 | Estimators      | 100 trees                 |
 | Random State    | 42                        |
-| R² Score        | ~0.65 (Linear Regression baseline) |
+| R² Score        | ~0.70 (Linear Regression baseline) |
 
 The model is trained at app startup on the full dataset each time the app launches.
 
