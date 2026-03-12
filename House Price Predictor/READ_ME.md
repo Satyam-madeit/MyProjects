@@ -31,7 +31,7 @@ streamlit run Price_Predictor_app.py
 ## 📁 Project Structure
 
 ```
-Housing Price Model/
+Housing Price Predictor/
 │
 ├── Price_Predictor_app.py   # Main Streamlit application
 ├── housing.csv              # Dataset used for training
