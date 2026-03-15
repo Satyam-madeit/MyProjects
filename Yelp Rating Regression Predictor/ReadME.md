@@ -105,7 +105,7 @@ print(f"Predicted Star Rating: {predicted_stars[0][0]:.2f} ⭐")
 | Version | Features | R² Score |
 |---------|----------|----------|
 | Initial | 24 | ~66.7% |
-| Tuned | 15 | ~71.0% |
+| Tuned | 15 | ~71.2% |
 
 ---
 
