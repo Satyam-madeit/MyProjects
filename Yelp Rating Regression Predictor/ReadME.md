@@ -7,6 +7,7 @@ A machine learning project that predicts Yelp star ratings for restaurants using
 ## 📁 Dataset
 
 The project uses six Yelp JSON files:
+(These files can be accessed from the [user agreement](https://www.codecademy.com/content-items/6465513928f4b4eb1886c2bae85c72cd) of yelp's data
 
 | File | Description |
 |------|-------------|
